@@ -27,8 +27,8 @@ This project enables real-time streaming of 3-axis accelerometer and gyroscope d
 ### ESP32-S3 Setup
 1. Clone the repository:
    ```sh
-   git clone <repo-url>
-   cd <repo-name>
+   git clone https://github.com/Biraj-P/MQTT-RasPi-Esp32.git
+   cd MQTT-RasPi-Esp32
    ```
 2. Set up the ESP-IDF environment (Ensure ESP-IDF v5.3.2 is installed and sourced).
 3. Configure the project:
