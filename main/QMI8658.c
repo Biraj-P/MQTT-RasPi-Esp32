@@ -571,9 +571,11 @@ unsigned char QMI8658_init(void)
 	unsigned char QMI8658_chip_id = 0x00;
 	unsigned char QMI8658_revision_id = 0x00;
 	unsigned char QMI8658_slave[2] = {QMI8658_SLAVE_ADDR_L, QMI8658_SLAVE_ADDR_H};
+	//According to datasheet, Slave Address Low level= 0x6A
+	//According to datasheet, Slave Address High level= 0x6B
 	unsigned char iCount = 0;
-	int retry = 0;
-
+	int retry;
+	//in while loop we are checking slave address is high or low
 	while (iCount < 2)
 	{
 		QMI8658_slave_addr = QMI8658_slave[iCount];

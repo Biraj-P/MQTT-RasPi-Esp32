@@ -73,14 +73,14 @@ void wifi_connection()
     esp_wifi_connect();
 }
 
-#define SENSOR_READ_INTERVAL_MS 20 // 50Hz = 20ms interval
+#define SENSOR_READ_INTERVAL_MS 14.5 // 50Hz = 20ms interval (took 15ms since we are assuming overall delay of 5.5ms)
 
 esp_mqtt_client_handle_t mqtt_client;
 
 /** @todo ADD sensor function
 */
 typedef struct {
-    u_int32_t timestamp;
+    u_int16_t timestamp;
     float acc_x;
     float acc_y;
     float acc_z;
@@ -119,30 +119,66 @@ void mqtt_publish_sensor_data() {
         SensorData sensor = read_sensor_data();
         
         snprintf(payload, sizeof(payload),
-                 "{\"timestamp\": %ld, \"acc_x\": %.2f, \"acc_y\": %.2f, \"acc_z\": %.2f, \"gyro_x\": %.2f, \"gyro_y\": %.2f, \"gyro_z\": %.2f}",
+                 "{\"timestamp\": %d, \"acc_x\": %.2f, \"acc_y\": %.2f, \"acc_z\": %.2f, \"gyro_x\": %.2f, \"gyro_y\": %.2f, \"gyro_z\": %.2f}",
                  sensor.timestamp, sensor.acc_x, sensor.acc_y, sensor.acc_z, sensor.gyro_x, sensor.gyro_y, sensor.gyro_z);
 
-        esp_mqtt_client_publish(mqtt_client, MQTT_TOPIC, payload, 0, 0, 0);
+        // snprintf(payload, sizeof(payload),
+        //          "{\"acc_x\": %.2f, \"acc_y\": %.2f, \"acc_z\": %.2f, \"gyro_x\": %.2f, \"gyro_y\": %.2f, \"gyro_z\": %.2f}",
+        //           sensor.acc_x, sensor.acc_y, sensor.acc_z, sensor.gyro_x, sensor.gyro_y, sensor.gyro_z);
+
+        esp_mqtt_client_publish(mqtt_client, MQTT_TOPIC_PUBLISH, payload, 0, 0, 0);
         ESP_LOGI(TAG, "Published: %s", payload);
 
         vTaskDelay(pdMS_TO_TICKS(SENSOR_READ_INTERVAL_MS)); // 50Hz (every 20ms)
     }
 }
 
+void mqtt_subscribe_receive_data() {
+    esp_mqtt_client_subscribe(mqtt_client, MQTT_TOPIC_SUBSCRIBE, 0);
+    ESP_LOGI(TAG, "Subscribed to topic: %s", MQTT_TOPIC_SUBSCRIBE);
+}
+
+/**
+ * @brief MQTT event handler
+ */
+// static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
+//     //esp_mqtt_event_handle_t event = event_data;
+//     switch ((esp_mqtt_event_id_t)event_id) {
+//         case MQTT_EVENT_CONNECTED:
+//             ESP_LOGI(TAG, "MQTT connected");
+//             xTaskCreate(mqtt_publish_sensor_data, "mqtt_publish_task", 4096, NULL, 5, NULL);
+//             xTaskCreate(mqtt_subscribe_receive_data, "mqtt_subscribe_task", 1024, NULL, 4, NULL);
+//             break;
+//         case MQTT_EVENT_DISCONNECTED:
+//             ESP_LOGI(TAG, "MQTT disconnected");
+//             break;
+//         default:
+//             break;
+//     }
+// }
 
 /**
  * @brief MQTT event handler
  */
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
-    //esp_mqtt_event_handle_t event = event_data;
-    switch ((esp_mqtt_event_id_t)event_id) {
+    esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t) event_data;
+
+    switch ((esp_mqtt_event_id_t) event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT connected");
             xTaskCreate(mqtt_publish_sensor_data, "mqtt_publish_task", 4096, NULL, 5, NULL);
+            xTaskCreate(mqtt_subscribe_receive_data, "mqtt_subscribe_task", 1024, NULL, 4, NULL);
             break;
+
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT disconnected");
             break;
+
+        case MQTT_EVENT_DATA:
+            ESP_LOGI(TAG, "Received MQTT message on topic: %.*s", event->topic_len, event->topic);
+            ESP_LOGI(TAG, "Message: %.*s", event->data_len, event->data);
+            break;
+
         default:
             break;
     }
@@ -167,12 +203,12 @@ void init_mqtt() {
 void app_main() {
     // Initialize I2C
     i2c_config_t conf;
-    conf.mode = I2C_MODE_MASTER;
-    conf.sda_io_num = I2C_MASTER_SDA_IO;
-    conf.scl_io_num = I2C_MASTER_SCL_IO;
-    conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
-    conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    conf.master.clk_speed = I2C_MASTER_FREQ_HZ;
+    conf.mode = I2C_MODE_MASTER;    //predefined- value can be 0 or 1
+    conf.sda_io_num = I2C_MASTER_SDA_IO;    //user-defined-- refer datasheet, here it is 6
+    conf.scl_io_num = I2C_MASTER_SCL_IO;    //user-defined-- refer datasheet, here it is 7
+    conf.sda_pullup_en = GPIO_PULLUP_ENABLE;    //predefined-- To enable the sda pin
+    conf.scl_pullup_en = GPIO_PULLUP_ENABLE;    //predefined-- To enable the scl pin
+    conf.master.clk_speed = I2C_MASTER_FREQ_HZ; //userdefined clock speed-- max is 400kHz
 
     i2c_param_config(I2C_MASTER_NUM, &conf);
     i2c_driver_install(I2C_MASTER_NUM, conf.mode, 0, 0, 0);
