@@ -73,7 +73,7 @@ void wifi_connection()
     esp_wifi_connect();
 }
 
-#define SENSOR_READ_INTERVAL_MS 14.5 // 50Hz = 20ms interval (took 15ms since we are assuming overall delay of 5.5ms)
+#define SENSOR_READ_INTERVAL_MS 15 // 50Hz = 20ms interval (took 15ms since we are assuming overall delay of 5ms)
 
 esp_mqtt_client_handle_t mqtt_client;
 
@@ -112,7 +112,7 @@ SensorData read_sensor_data() {
 /**
  * @brief Send sensor data over MQTT
  */
-void mqtt_publish_sensor_data() {
+void mqtt_sensor_data() {
     char payload[128];
 
     while (1) {
@@ -127,35 +127,12 @@ void mqtt_publish_sensor_data() {
         //           sensor.acc_x, sensor.acc_y, sensor.acc_z, sensor.gyro_x, sensor.gyro_y, sensor.gyro_z);
 
         esp_mqtt_client_publish(mqtt_client, MQTT_TOPIC_PUBLISH, payload, 0, 0, 0);
-        ESP_LOGI(TAG, "Published: %s", payload);
+        esp_mqtt_client_subscribe(mqtt_client, MQTT_TOPIC_SUBSCRIBE, 0);
+        //ESP_LOGI(TAG, "Published: %s", payload);
 
         vTaskDelay(pdMS_TO_TICKS(SENSOR_READ_INTERVAL_MS)); // 50Hz (every 20ms)
     }
 }
-
-void mqtt_subscribe_receive_data() {
-    esp_mqtt_client_subscribe(mqtt_client, MQTT_TOPIC_SUBSCRIBE, 0);
-    ESP_LOGI(TAG, "Subscribed to topic: %s", MQTT_TOPIC_SUBSCRIBE);
-}
-
-/**
- * @brief MQTT event handler
- */
-// static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
-//     //esp_mqtt_event_handle_t event = event_data;
-//     switch ((esp_mqtt_event_id_t)event_id) {
-//         case MQTT_EVENT_CONNECTED:
-//             ESP_LOGI(TAG, "MQTT connected");
-//             xTaskCreate(mqtt_publish_sensor_data, "mqtt_publish_task", 4096, NULL, 5, NULL);
-//             xTaskCreate(mqtt_subscribe_receive_data, "mqtt_subscribe_task", 1024, NULL, 4, NULL);
-//             break;
-//         case MQTT_EVENT_DISCONNECTED:
-//             ESP_LOGI(TAG, "MQTT disconnected");
-//             break;
-//         default:
-//             break;
-//     }
-// }
 
 /**
  * @brief MQTT event handler
@@ -166,16 +143,15 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     switch ((esp_mqtt_event_id_t) event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT connected");
-            xTaskCreate(mqtt_publish_sensor_data, "mqtt_publish_task", 4096, NULL, 5, NULL);
-            xTaskCreate(mqtt_subscribe_receive_data, "mqtt_subscribe_task", 1024, NULL, 4, NULL);
+            xTaskCreate(mqtt_sensor_data, "mqtt_publish_task", 4096, NULL, 5, NULL);
             break;
 
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT disconnected");
             break;
-
+    
         case MQTT_EVENT_DATA:
-            ESP_LOGI(TAG, "Received MQTT message on topic: %.*s", event->topic_len, event->topic);
+            //ESP_LOGI(TAG, "Received MQTT message on topic: %.*s", event->topic_len, event->topic);
             ESP_LOGI(TAG, "Message: %.*s", event->data_len, event->data);
             break;
 
